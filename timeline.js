@@ -158,20 +158,6 @@ class Timeline extends EventEmitter {
         this.$window.on('resize', this.DOMEvents.onWindowResize);
     }
 
-    setDOMEvents($element, eventName, fn) {
-        const context = this;
-
-        $element.on(eventName, function(event) {
-            const element = this;
-
-            fn.call(element, event, context);
-        });
-    }
-
-    removeDOMEvents($element, eventName, fn) {
-        $element.off(event, fn);
-    }
-
     setBulletPosition({ value, speed = this.speed, ease = this.easing }) {
         this.fx.to(this.$bullet, speed, {
             x: value,
