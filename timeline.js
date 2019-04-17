@@ -64,7 +64,7 @@ class Timeline extends EventEmitter {
         initialPosition = 1,
         vertical = false,
         fx = TweenMax,
-        DOMEvents = {},
+        messages: {},
     }) {
         super();
 
@@ -82,42 +82,44 @@ class Timeline extends EventEmitter {
         this.count          = initialPosition - 1;
         this.totalLength    = this.$dates.length - 1;
 
+        /*
+            Message Errors
+        */
+        this.messages = this.merge({
+            "timeline": "Please, you need to inform a timeline element root!",
+            "dates": "Please, you need to inform a list of date elements!",
+            "bullet": "Please, you need to inform a bullet element!",
+            "goto:index": "Please, index must be a Number!",
+            "goto:outofrange": "Please, insert a index into the timeline range!",
+        }, messages);
+
+
         if (!this.$timeline.length) {
-            showError('timeline');
+            this.showError('timeline');
         }
 
         if (!this.$bullet.length) {
-            showError('bullet');
+            this.showError('bullet');
         }
 
         if (!this.$dates.length) {
-            showError('dates');
+            this.showError('dates');
         }
 
         /*
             DOM Events
         */
 
-        this.DOMEvents = this.merge({
-            'ondate:click': function(event, context) {
+        this.DOMEvents = {
+            onDateClick(event) {
                 event.preventDefault();
-                context.goTo(context.getIndexByDate(this));
+                _this.goTo(_this.getIndexByDate(this));
             },
-            'onwindow:resize': function(event, context) {
-                context.animateTo(context.getCurrentDate())
+            onWindowResize(event) {
+                _this.animateTo(_this.getCurrentDate());
             }
-        }, DOMEvents);
-
-        /*
-            Message Errors
-        */
-        this.messages = {
-            "timeline": "Please, you need to inform a timeline element root!",
-            "dates": "Please, you need to inform a list of date elements!",
-            "bullet": "Please, you need to inform a bullet element!",
-            "goto:index": "Please, index must be a Number!",
-            "goto:outofrange": "Please, insert a index into the timeline range!",
         };
+
 
         /*
             Custom Events
@@ -152,8 +154,8 @@ class Timeline extends EventEmitter {
     }
 
     loadEvents() {
-        this.setDOMEvents(this.$dates, 'click', this.DOMEvents['ondate:click']);
-        this.setDOMEvents(this.$window, 'resize', this.DOMEvents['onwindow:resize']);
+        this.$dates.on('click', this.DOMEvents.onDateClick);
+        this.$window.on('resize', this.DOMEvents.onWindowResize);
     }
 
     setDOMEvents($element, eventName, fn) {
@@ -274,16 +276,15 @@ class Timeline extends EventEmitter {
     destroy() {
         this.$bullet.removeAttr('style');
 
-        removeDOMEvents(this.$dates, 'click', this.DOMEvents['ondate:click']);
-        removeDOMEvents(this.$window, 'resize', this.DOMEvents['onwindow:resize']);
+        this.$dates.off('click', this.DOMEvents.onDateClick);
+        this.$window.off('resize', this.DOMEvents.onWindowResize);
 
         delete this;
     }
 }
 
 /*
-
-How to Use - Timeline.js
+HOW TO USE - Timeline.js
 
 const timeline = new Timeline({
     $timeline: $('.timeline-line'),
@@ -294,4 +295,4 @@ const timeline = new Timeline({
 
 timeline.on('beforeChange', (options) => console.log(options));
 timeline.on('afterChange', (options) => console.log(options));
-*/
+/*
