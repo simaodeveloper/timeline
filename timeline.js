@@ -4,7 +4,7 @@ class EventEmitter {
     }
 
     hasProperty(object, property) {
-        return Object.hasOwnProperty.call(this.events, property);
+        return Object.hasOwnProperty.call(object, property);
     }
 
     hasEvent(name) {
@@ -22,6 +22,8 @@ class EventEmitter {
         } else {
             this.events[name].push(fn);
         }
+
+        return this;
     }
 
     once(name, fn) {
@@ -30,7 +32,7 @@ class EventEmitter {
             this.off(name, runOnce);
         };
 
-        this.on(name, runOnce);
+        return this.on(name, runOnce);
     }
 
     off(name, fn) {
@@ -40,6 +42,7 @@ class EventEmitter {
         } else if (!this.events[name].length) {
             delete this.events[name];
         }
+        return this;
     }
 
     trigger(name, ...args) {
@@ -49,6 +52,8 @@ class EventEmitter {
         }
 
         $.each(this.events[name], (index, fn) => fn(...args));
+
+        return this;
     }
 }
 
@@ -58,40 +63,40 @@ class Timeline extends EventEmitter {
         $timeline,
         $bullet,
         $dates,
-        autoplay = false,
         speed = .2,
-        easing = Expo.easeInOut,
+        ease = Expo.easeInOut,
         initialPosition = 1,
         vertical = false,
-        fx = TweenMax,
-        messages: {},
+        messages = {},
     }) {
         super();
 
         let _this           = this;
+        this._init          = false;
 
         this.$timeline      = $timeline;
         this.$bullet        = $bullet;
         this.$dates         = $dates;
         this.$window        = $(window),
-        this.fx             = fx;
         this.vertical       = vertical;
-        this.autoplay       = autoplay;
         this.speed          = speed;
-        this.easing         = easing;
+        this.ease           = ease;
         this.count          = initialPosition - 1;
         this.totalLength    = this.$dates.length - 1;
+        this.bulletPosition = 0;
 
         /*
             Message Errors
         */
-        this.messages = this.merge({
+        const defaultMessages = {
             "timeline": "Please, you need to inform a timeline element root!",
             "dates": "Please, you need to inform a list of date elements!",
             "bullet": "Please, you need to inform a bullet element!",
             "goto:index": "Please, index must be a Number!",
             "goto:outofrange": "Please, insert a index into the timeline range!",
-        }, messages);
+        };
+
+        this.messages = this.merge(defaultMessages, messages);
 
 
         if (!this.$timeline.length) {
@@ -109,14 +114,15 @@ class Timeline extends EventEmitter {
         /*
             DOM Events
         */
-
         this.DOMEvents = {
             onDateClick(event) {
                 event.preventDefault();
                 _this.goTo(_this.getIndexByDate(this));
             },
             onWindowResize(event) {
-                _this.animateTo(_this.getCurrentDate());
+                if (_this._init) {
+                    _this.animateTo(_this.getCurrentDate());
+                }
             }
         };
 
@@ -124,6 +130,7 @@ class Timeline extends EventEmitter {
         /*
             Custom Events
         */
+
         this.on('beforeChange', () => {});
         this.on('afterChange', () => {});
 
@@ -136,11 +143,6 @@ class Timeline extends EventEmitter {
 
     start() {
         this.loadEvents();
-        this.goTo(this.count);
-
-        if (this.autoplay) {
-            // ..
-        }
     }
 
     merge(target, ...objects) {
@@ -158,21 +160,34 @@ class Timeline extends EventEmitter {
         this.$window.on('resize', this.DOMEvents.onWindowResize);
     }
 
-    setBulletPosition({ value, speed = this.speed, ease = this.easing }) {
-        this.fx.to(this.$bullet, speed, {
-            x: value,
-            ease,
-            onComplete: () => {
+    setBulletPosition({ value, speed = this.speed, ease = this.ease }) {
+        const direction = this.vertical ? 'y' : 'x';
+        const onComplete = () => {
+            this.bulletPosition = value;
 
-                // afterChange
-                this.trigger('afterChange', {
-                    context: this,
-                    index: this.count,
-                    direction: null,
-                    $date: this.getCurrentDate()
-                });
-            }
+            this.trigger('afterChange', {
+                eventName: 'afterChange',
+                context: this,
+                currentIndex: this.count,
+                bulletPosition: this.bulletPosition,
+                direction: null,
+                $date: this.getCurrentDate()
+            })
+        };
+
+        TweenMax.to(this.$bullet, speed, {
+            [direction]: value,
+            ease,
+            onComplete
         });
+    }
+
+    getLimit() {
+        return this.getOffset(this.$timeline) + this.$timeline.innerWidth();
+    }
+
+    getTimelineHeight() {
+        return this.$timeline.innerHeight();
     }
 
     getCurrentDate() {
@@ -191,14 +206,18 @@ class Timeline extends EventEmitter {
         return this.$dates.eq(index);
     }
 
-    animateTo($date) {
+    calculateBulletPosition($date) {
         const timelineOffset = this.getOffset(this.$timeline);
         const currentDateOffset = this.getOffset($date);
         const offset = currentDateOffset - timelineOffset;
-        const bulletPosition = Math.floor($date[this.vertical ? 'innerHeight' : 'innerWidth']() / 2) + offset;
+        return Math.floor($date[this.vertical ? 'innerHeight' : 'innerWidth']() / 2) + offset;
+    }
+
+    animateTo($date) {
+        this.bulletPosition = this.calculateBulletPosition($date);
 
         this.setBulletPosition({
-            value: `${bulletPosition}px`
+            value: `${this.bulletPosition}px`
         });
     }
 
@@ -214,9 +233,20 @@ class Timeline extends EventEmitter {
             this.showError('goto:outofrange');
         }
 
+        this.trigger('beforeChange', {
+            eventName: 'beforeChange',
+            context: this,
+            bulletPosition: this.bulletPosition,
+            nextBulletPosition: this.calculateBulletPosition(this.getDateByIndex(index)),
+            currentIndex: this.count,
+            nextIndex: index,
+            direction: index > this.count ? 'next' : 'previous',
+            $date: this.getCurrentDate()
+        });
+
         this.count = index;
 
-        this.animateTo(this.getDateByIndex(this.count));
+        this.animateTo(this.getCurrentDate());
     }
 
     next() {
@@ -228,13 +258,6 @@ class Timeline extends EventEmitter {
         if (this.count <= this.totalLength) {
             this.count++;
         }
-
-        this.trigger('beforeChange', {
-            context: this,
-            index: this.count - 1,
-            direction: 'next',
-            $date: this.getDateByIndex(this.count - 1)
-        });
 
         this.goTo(this.count);
     }
@@ -248,13 +271,6 @@ class Timeline extends EventEmitter {
         if (this.count > 0) {
             this.count--;
         }
-
-        this.trigger('beforeChange', {
-            context: this,
-            index: this.count + 1,
-            direction: 'prev',
-            $date: this.getDateByIndex(this.count + 1)
-        });
 
         this.goTo(this.count);
     }
