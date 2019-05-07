@@ -1,5 +1,3 @@
-# timeline-bullet
-A plugin to easely handle a timeline bullet
+# 🐗 timeline-vanilla
 
-
-![example](https://github.com/simaodeveloper/timeline-bullet/blob/master/example.gif)
+> My awesome lib created by [Javali](https://javali.js.org)
