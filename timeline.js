@@ -143,7 +143,7 @@ class Timeline extends EventEmitter {
 
     start() {
         this.loadEvents();
-        this._init = true;
+        this.init = true;
     }
 
     merge(target, ...objects) {
